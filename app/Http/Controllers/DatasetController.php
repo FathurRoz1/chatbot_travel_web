@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\MDataset;
+use GuzzleHttp\Client;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -45,7 +46,7 @@ class DatasetController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:100',
-            'file' => 'required|file|mimes:csv,txt,xlsx,xls|max:10240'
+            'file' => 'required|file|mimes:pdf|max:10240'
         ]);
 
         if ($validator->fails()) {
@@ -63,6 +64,34 @@ class DatasetController extends Controller
             $file = $request->file('file');
             $filename = time() . '_' . $file->getClientOriginalName();
             $filePath = $file->storeAs('datasets', $filename, 'public');
+
+            // $request->validate([
+            //     'file' => 'required|file|mimes:pdf,txt|max:51200',
+            // ]);
+
+            $client = new Client([
+                'timeout' => 0, // build bisa lama; atau set 300
+            ]);
+
+            $file = $request->file('file');
+
+            $resp = $client->post(rtrim(env('DATASET_API_URL'), '/').'/datasets/upload', [
+                'headers' => [
+                    'Authorization' => 'Bearer ' . env('DATASET_API_TOKEN'),
+                    'Accept' => 'application/json',
+                ],
+                'multipart' => [
+                    [
+                        'name'     => 'file',
+                        'contents' => fopen($file->getRealPath(), 'r'),
+                        'filename' => $file->getClientOriginalName(),
+                    ],
+                ],
+                'http_errors' => false,
+            ]);
+
+            return response($resp->getBody(), $resp->getStatusCode())
+                ->header('Content-Type', 'application/json');
 
             // Create dataset
             $dataset = MDataset::create([
@@ -248,5 +277,37 @@ class DatasetController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    
+    public function uploadDataset(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:pdf,txt|max:51200',
+        ]);
+
+        $client = new Client([
+            'timeout' => 0, // build bisa lama; atau set 300
+        ]);
+
+        $file = $request->file('file');
+
+        $resp = $client->post(rtrim(env('DATASET_API_URL'), '/').'/datasets/upload', [
+            'headers' => [
+                'Authorization' => 'Bearer ' . env('DATASET_API_TOKEN'),
+                'Accept' => 'application/json',
+            ],
+            'multipart' => [
+                [
+                    'name'     => 'file',
+                    'contents' => fopen($file->getRealPath(), 'r'),
+                    'filename' => $file->getClientOriginalName(),
+                ],
+            ],
+            'http_errors' => false,
+        ]);
+
+        return response($resp->getBody(), $resp->getStatusCode())
+            ->header('Content-Type', 'application/json');
     }
 }

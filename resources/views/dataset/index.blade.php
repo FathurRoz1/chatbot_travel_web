@@ -3,6 +3,64 @@
 @section('title', 'Dataset Management | Travel Malang ID')
 
 @section('content')
+<style>
+    /* HTML: <div class="loader"></div> */
+    .loader-inner {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    }
+    
+    .loader-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: none;
+    }
+    .loader {
+        width: 50px;
+        aspect-ratio: 1;
+        display: grid;
+        border: 4px solid #0000;
+        border-radius: 50%;
+        border-color: #ccc #0000;
+        animation: l16 1s infinite linear;
+    }
+    .loader::before,
+    .loader::after {    
+        content: "";
+        grid-area: 1/1;
+        margin: 2px;
+        border: inherit;
+        border-radius: 50%;
+    }
+    .loader::before {
+        border-color: #f03355 #0000;
+        animation: inherit; 
+        animation-duration: .5s;
+        animation-direction: reverse;
+    }
+    .loader::after {
+        margin: 8px;
+    }
+    @keyframes l16 { 
+        100%{transform: rotate(1turn)}
+    }
+</style>
+<div class="loader-container" id="loaderNew">
+    <div class="loader-inner">
+        <div class="loader"></div>
+    </div>
+</div>
 <!-- [ breadcrumb ] start -->
 <div class="page-header">
     <div class="page-block">
@@ -57,6 +115,72 @@
     <!-- [ sample-page ] end -->
 </div>
 <!-- [ Main Content ] end -->
+
+<!-- Add Dataset Modal -->
+<div class="modal fade" id="addDatasetModal" tabindex="-1" aria-labelledby="addDatasetModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addDatasetModalLabel">Add Dataset</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="addDatasetForm" enctype="multipart/form-data">
+                <div class="modal-body">
+                    @csrf
+                    <div class="mb-3">
+                        <label for="add-name" class="form-label">Dataset Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="add-name" name="name" placeholder="Enter dataset name" required>
+                        <div class="invalid-feedback"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="add-file" class="form-label">Upload File <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" id="add-file" name="file" accept=".pdf" required>
+                        <div class="form-text">Accepted formats: PDF</div>
+                        <div class="invalid-feedback"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Dataset</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Dataset Modal -->
+<div class="modal fade" id="editDatasetModal" tabindex="-1" aria-labelledby="editDatasetModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editDatasetModalLabel">Edit Dataset</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="editDatasetForm" enctype="multipart/form-data">
+                <div class="modal-body">
+                    @csrf
+                    @method('PUT')
+                    <input type="hidden" id="edit-dataset-id" name="dataset_id">
+                    <div class="mb-3">
+                        <label for="edit-name" class="form-label">Dataset Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="edit-name" name="name" placeholder="Enter dataset name" required>
+                        <div class="invalid-feedback"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-file" class="form-label">Upload File</label>
+                        <input type="file" class="form-control" id="edit-file" name="file" accept=".csv,.txt,.xlsx,.xls">
+                        <div class="form-text">Leave empty to keep current file. Accepted formats: CSV, TXT, XLSX, XLS</div>
+                        <div class="invalid-feedback"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Dataset</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
@@ -79,62 +203,55 @@
             ]
         });
 
-        // Add Dataset
+        // Show Add Dataset Modal
         $('#addDatasetBtn').on('click', function() {
-            Swal.fire({
-                title: 'Add Dataset',
-                html: `
-                    <input id="swal-name" class="swal2-input" placeholder="Dataset Name">
-                    <input id="swal-file" type="file" class="swal2-file" accept=".csv,.txt,.xlsx,.xls">
-                `,
-                showCancelButton: true,
-                confirmButtonText: 'Save',
-                preConfirm: () => {
-                    const name = $('#swal-name').val();
-                    const file = $('#swal-file')[0].files[0];
-                    
-                    if (!name || !file) {
-                        Swal.showValidationMessage('Name and file are required');
-                        return false;
+            $('#addDatasetForm')[0].reset();
+            $('#addDatasetForm .is-invalid').removeClass('is-invalid');
+            $('#addDatasetModal').modal('show');
+        });
+
+        // Handle Add Dataset Form Submit
+        $('#addDatasetForm').on('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            $('#addDatasetModal').modal('hide');
+            $('#loaderNew').show();
+            $.ajax({
+                url: '{{ route('dataset.store') }}',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    $('#loaderNew').hide();
+                    $('#addDatasetModal').modal('hide');
+                    Swal.fire('Success!', response.message, 'success');
+                    table.ajax.reload();
+                },
+                error: function(xhr) {
+                    $('#loaderNew').hide();
+                    // $('#addDatasetModal').modal('hide');
+                    if (xhr.status === 422) {
+                        const errors = xhr.responseJSON.errors;
+                        // Clear previous errors
+                        $('#addDatasetForm .is-invalid').removeClass('is-invalid');
+                        $('#addDatasetForm .invalid-feedback').text('');
+                        
+                        // Show validation errors
+                        Object.keys(errors).forEach(key => {
+                            const input = $('#add-' + key);
+                            input.addClass('is-invalid');
+                            input.siblings('.invalid-feedback').text(errors[key][0]);
+                        });
+                    } else {
+                        Swal.fire('Error!', xhr.responseJSON.message || 'Failed to create dataset', 'error');
                     }
-                    
-                    return { name, file };
-                }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    const formData = new FormData();
-                    formData.append('_token', '{{ csrf_token() }}');
-                    formData.append('name', result.value.name);
-                    formData.append('file', result.value.file);
-                    
-                    $.ajax({
-                        url: '{{ route('dataset.store') }}',
-                        type: 'POST',
-                        data: formData,
-                        processData: false,
-                        contentType: false,
-                        success: function(response) {
-                            Swal.fire('Success!', response.message, 'success');
-                            table.ajax.reload();
-                        },
-                        error: function(xhr) {
-                            const errors = xhr.responseJSON.errors;
-                            let errorMsg = '';
-                            if (errors) {
-                                Object.keys(errors).forEach(key => {
-                                    errorMsg += errors[key][0] + '<br>';
-                                });
-                            } else {
-                                errorMsg = xhr.responseJSON.message || 'Failed to create dataset';
-                            }
-                            Swal.fire('Error!', errorMsg, 'error');
-                        }
-                    });
                 }
             });
         });
 
-        // Edit Dataset
+        // Show Edit Dataset Modal
         $(document).on('click', '.edit-btn', function() {
             const datasetId = $(this).data('id');
             
@@ -142,61 +259,53 @@
                 url: '{{ url('dataset') }}/' + datasetId,
                 type: 'GET',
                 success: function(response) {
-                    Swal.fire({
-                        title: 'Edit Dataset',
-                        html: `
-                            <input id="swal-name" class="swal2-input" placeholder="Dataset Name" value="${response.data.name}">
-                            <input id="swal-file" type="file" class="swal2-file" accept=".csv,.txt,.xlsx,.xls">
-                            <small class="text-muted">Leave file blank to keep current file</small>
-                        `,
-                        showCancelButton: true,
-                        confirmButtonText: 'Update',
-                        preConfirm: () => {
-                            const name = $('#swal-name').val();
-                            const file = $('#swal-file')[0].files[0];
-                            
-                            if (!name) {
-                                Swal.showValidationMessage('Name is required');
-                                return false;
-                            }
-                            
-                            return { name, file };
-                        }
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            const formData = new FormData();
-                            formData.append('_token', '{{ csrf_token() }}');
-                            formData.append('_method', 'PUT');
-                            formData.append('name', result.value.name);
-                            if (result.value.file) {
-                                formData.append('file', result.value.file);
-                            }
-                            
-                            $.ajax({
-                                url: '{{ url('dataset') }}/' + datasetId,
-                                type: 'POST',
-                                data: formData,
-                                processData: false,
-                                contentType: false,
-                                success: function(response) {
-                                    Swal.fire('Success!', response.message, 'success');
-                                    table.ajax.reload();
-                                },
-                                error: function(xhr) {
-                                    const errors = xhr.responseJSON.errors;
-                                    let errorMsg = '';
-                                    if (errors) {
-                                        Object.keys(errors).forEach(key => {
-                                            errorMsg += errors[key][0] + '<br>';
-                                        });
-                                    } else {
-                                        errorMsg = xhr.responseJSON.message || 'Failed to update dataset';
-                                    }
-                                    Swal.fire('Error!', errorMsg, 'error');
-                                }
-                            });
-                        }
-                    });
+                    $('#edit-dataset-id').val(datasetId);
+                    $('#edit-name').val(response.data.name);
+                    $('#editDatasetForm .is-invalid').removeClass('is-invalid');
+                    $('#editDatasetForm .invalid-feedback').text('');
+                    $('#editDatasetModal').modal('show');
+                },
+                error: function(xhr) {
+                    Swal.fire('Error!', 'Failed to load dataset data', 'error');
+                }
+            });
+        });
+
+        // Handle Edit Dataset Form Submit
+        $('#editDatasetForm').on('submit', function(e) {
+            e.preventDefault();
+            
+            const datasetId = $('#edit-dataset-id').val();
+            const formData = new FormData(this);
+            formData.append('_method', 'PUT');
+            
+            $.ajax({
+                url: '{{ url('dataset') }}/' + datasetId,
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    $('#editDatasetModal').modal('hide');
+                    Swal.fire('Success!', response.message, 'success');
+                    table.ajax.reload();
+                },
+                error: function(xhr) {
+                    if (xhr.status === 422) {
+                        const errors = xhr.responseJSON.errors;
+                        // Clear previous errors
+                        $('#editDatasetForm .is-invalid').removeClass('is-invalid');
+                        $('#editDatasetForm .invalid-feedback').text('');
+                        
+                        // Show validation errors
+                        Object.keys(errors).forEach(key => {
+                            const input = $('#edit-' + key);
+                            input.addClass('is-invalid');
+                            input.siblings('.invalid-feedback').text(errors[key][0]);
+                        });
+                    } else {
+                        Swal.fire('Error!', xhr.responseJSON.message || 'Failed to update dataset', 'error');
+                    }
                 }
             });
         });
